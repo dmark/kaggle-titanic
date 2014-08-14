@@ -1,4 +1,4 @@
 kaggle-titanic
 ==============
 
-Kaggle's Titanic tutorial compentition.
+Kaggle's Titanic tutorial competition.
