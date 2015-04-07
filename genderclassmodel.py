@@ -1,73 +1,65 @@
-# genderclassmodel.py - A slightly less naive model for predicting Titanic
-# survivors. We incorporate the ticket fare price and ticket / cabin class in
-# the model. A trimmed version of the tutorial code from the Titanic Kaggle
-# competition.      
+""" Now that the user can read in a file this creates a model which uses the price, class and gender
+Author : AstroDave
+Date : 18th September 2012
+Revised : 28 March 2014
+
+"""
+
 
 import csv as csv
 import numpy as np
 
-### Train
+csv_file_object = csv.reader(open('train.csv', 'rb'))       # Load in the csv file
+header = csv_file_object.next()                             # Skip the fist line as it is a header
+data=[]                                                     # Create a variable to hold the data
 
-# Read the training data into a list and convert to a NumPy array.               
-training_data = csv.reader(open('data/train.csv', 'rb'))
-header = training_data.next()    # Lop off the header.                           
-data=[]
-for row in training_data:
-    data.append(row[0:])
-data = np.array(data)
+for row in csv_file_object:                 # Skip through each row in the csv file
+    data.append(row)                        # adding each row to the data variable
+data = np.array(data)                       # Then convert from a list to an array
 
-# There are 891 records of 12 features each. At this point all the feature          
-# values are strings. All the values of a NumPy array must be of the same type.  
-# Since the data is of mixed type, strings are required as the only means to        
-# represent all the different features. We will need to convert numeric types    
-# on the fly. Pandas fixes this by offering data frames.
-
-# Fare prices range from 0 (zero = unknown?) to 4.0125 (lowest fare paid) to
-# 512.3292 (highest fare paid). In the tutorial online we created four bins
-# where the top bin maxed out at 39. Any price paid that was higher than 39 was
-# simply set to 39. It would be useful to have more insight into fare price vs.
-# ticket class. We can play with the fare_ceiling variable to see what effect
-# that has on the results.
-
-# As a test I changed the fare_ceiling from 40 to 100. There was no change in
-# the resulting score on Kaggle.
-
-# And fare price over fare_ceiling is set to fare_ceiling -1
-fare_ceiling = 100
-data[data[0::,9].astype(np.float) >= fare_ceiling,9] = fare_ceiling - 1.0
+# In order to analyse the price column I need to bin up that data
+# here are my binning parameters, the problem we face is some of the fares are very large
+# So we can either have a lot of bins with nothing in them or we can just lose some
+# information by just considering that anythng over 39 is simply in the last bin.
+# So we add a ceiling
+fare_ceiling = 40
+# then modify the data in the Fare column to = 39, if it is greater or equal to the ceiling
+data[ data[0::,9].astype(np.float) >= fare_ceiling, 9 ] = fare_ceiling - 1.0
 
 fare_bracket_size = 10
 number_of_price_brackets = fare_ceiling / fare_bracket_size
+number_of_classes = 3                             # I know there were 1st, 2nd and 3rd classes on board.
+number_of_classes = len(np.unique(data[0::,2]))   # But it's better practice to calculate this from the Pclass directly:
+                                                  # just take the length of an array of UNIQUE values in column index 2
 
-number_of_classes = len(np.unique(data[0::,2]))
 
-# This reference matrix will show the proportion of survivors as a sorted table
-# of gender, class and ticket fare. First initialize it with all zeros.
+# This reference matrix will show the proportion of survivors as a sorted table of
+# gender, class and ticket fare.
+# First initialize it with all zeros
 survival_table = np.zeros([2,number_of_classes,number_of_price_brackets],float)
 
 # I can now find the stats of all the women and men on board
 for i in xrange(number_of_classes):
     for j in xrange(number_of_price_brackets):
 
-        # Filter where gender = female and class = i+1 and fare in price bracket j+1
         women_only_stats = data[ (data[0::,4] == "female") \
                                  & (data[0::,2].astype(np.float) == i+1) \
                                  & (data[0:,9].astype(np.float) >= j*fare_bracket_size) \
                                  & (data[0:,9].astype(np.float) < (j+1)*fare_bracket_size), 1]
 
-        # Filter where gender = male and class = i+1 and fare in price bracket j+1
         men_only_stats = data[ (data[0::,4] != "female") \
                                  & (data[0::,2].astype(np.float) == i+1) \
                                  & (data[0:,9].astype(np.float) >= j*fare_bracket_size) \
                                  & (data[0:,9].astype(np.float) < (j+1)*fare_bracket_size), 1]
 
+                                 #if i == 0 and j == 3:
+
         survival_table[0,i,j] = np.mean(women_only_stats.astype(np.float))  # Female stats
         survival_table[1,i,j] = np.mean(men_only_stats.astype(np.float))    # Male stats
 
 # Since in python if it tries to find the mean of an array with nothing in it
-# (such that the denominator is 0), then it returns nan, we can convert these
-# to 0 by just saying where does the array not equal the array, and set these
-# to 0.
+# (such that the denominator is 0), then it returns nan, we can convert these to 0
+# by just saying where does the array not equal the array, and set these to 0.
 survival_table[ survival_table != survival_table ] = 0.
 
 # Now I have my proportion of survivors, simply round them such that if <0.5
@@ -78,12 +70,12 @@ survival_table[ survival_table >= 0.5 ] = 1
 # Now I have my indicator I can read in the test file and write out
 # if a women then survived(1) if a man then did not survived (0)
 # First read in test
-test_file = open('data/test.csv', 'rb')
+test_file = open('test.csv', 'rb')
 test_file_object = csv.reader(test_file)
 header = test_file_object.next()
 
 # Also open the a new file so I can write to it. 
-predictions_file = open("results/genderclassmodel.csv", "wb")
+predictions_file = open("genderclassmodel.csv", "wb")
 predictions_file_object = csv.writer(predictions_file)
 predictions_file_object.writerow(["PassengerId", "Survived"])
 

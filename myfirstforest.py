@@ -1,138 +1,95 @@
-# myfirstforest.py - A model that implements a random forest. Will it do any
-# better than the previous and seemingly more naive models?
+""" Writing my first randomforest code.
+Author : AstroDave
+Date : 23rd September 2012
+Revised: 15 April 2014
+please see packages.python.org/milk/randomforests.html for more
 
+""" 
 import pandas as pd
 import numpy as np
 import csv as csv
 from sklearn.ensemble import RandomForestClassifier
 
-### Training Data
-training_df = pd.read_csv('data/train.csv', header = 0)
+# Data cleanup
+# TRAIN DATA
+train_df = pd.read_csv('train.csv', header=0)        # Load the train file into a dataframe
 
-## Clean
+# I need to convert all strings to integer classifiers.
+# I need to fill in the missing values of the data and make it complete.
 
-# Map gender to 0 (female) and 1 (male)
-training_df['Gender'] = training_df['Sex'].map( {'female': 0, 'male': 1} ).astype(int)
+# female = 0, Male = 1
+train_df['Gender'] = train_df['Sex'].map( {'female': 0, 'male': 1} ).astype(int)
 
-# Map point of embarkation to 0, 1, 2, 3 -- How should we deal with missing
-# values?
-training_df['PortOfOrigin'] = training_df['Embarked'].map( {None: 0, 'S': 1, 'C': 2, 'Q': 3} ).astype(int)
+# Embarked from 'C', 'Q', 'S'
+# Note this is not ideal: in translating categories to numbers, Port "2" is not 2 times greater than Port "1", etc.
 
-# Make a copy of the Age column
-training_df['AgeFill'] = training_df['Age']
-# Calculate median per-class ages
-median_ages = np.zeros((2,3))
-for i in range(0,2):
-    for j in range(0,3):
-        median_ages[i,j] = training_df[(training_df['Gender'] == i) &
-            (training_df['Pclass'] == j+1)]['Age'].dropna().median()
-# Plug in median gender-class ages for null entries
-for i in range(0,2):
-    for j in range(0,3):
-        training_df.loc[ (training_df.Age.isnull()) & (training_df.Gender == i) &(training_df.Pclass == j+1),
-                'AgeFill'] = median_ages[i,j]
-# A column of 0s and 1s indicating which records had missing Age values.
-training_df['AgeIsNull'] = pd.isnull(training_df.Age).astype(int)
+# All missing Embarked -> just make them embark from most common place
+if len(train_df.Embarked[ train_df.Embarked.isnull() ]) > 0:
+    train_df.Embarked[ train_df.Embarked.isnull() ] = train_df.Embarked.dropna().mode().values
 
-training_df['FamilySize'] = training_df['SibSp'] + training_df['Parch']
-training_df['Age*Class'] = training_df.AgeFill * training_df.Pclass
+Ports = list(enumerate(np.unique(train_df['Embarked'])))    # determine all values of Embarked,
+Ports_dict = { name : i for i, name in Ports }              # set up a dictionary in the form  Ports : index
+train_df.Embarked = train_df.Embarked.map( lambda x: Ports_dict[x]).astype(int)     # Convert all Embark strings to int
 
-# Drop unused columns and rows with missing values
-training_df = training_df.drop(['PassengerId', 'Name', 'Age', 'Sex', 'Ticket', 'Cabin', 'Embarked'], axis=1)
-training_df = training_df.dropna()
+# All the ages with no data -> make the median of all Ages
+median_age = train_df['Age'].dropna().median()
+if len(train_df.Age[ train_df.Age.isnull() ]) > 0:
+    train_df.loc[ (train_df.Age.isnull()), 'Age'] = median_age
 
-# All the missing Fares -> assume median of their respective class
-if len(training_df.Fare[ training_df.Fare.isnull() ]) > 0:
-    median_fare = np.zeros(3)
-    for f in range(0,3):
-        median_fare[f] = training_df[ training_df.Pclass == f+1 ]['Fare'].dropna().median()
-    for f in range(0,3):
-        training_df.loc[ (training_df.Fare.isnull()) & (training_df.Pclass == f+1 ), 'Fare'] = median_fare[f]
+# Remove the Name column, Cabin, Ticket, and Sex (since I copied and filled it to Gender)
+train_df = train_df.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId'], axis=1) 
 
-# Convert training data back to a NumPy array
-training_data = training_df.values
 
-# We have 11 features as follows:
-#   1.  Survived:     0 =no, 1 = yes
-#   2.  Pclass:       1 = 1st, 2 = 2nd, 3 = 3rd
-#   3.  SibSp:        Int
-#   4.  Parch:        Int
-#   5.  Fare:         Float
-#   6.  Gender:       0 = female, 1 = male
-#   7.  PortOfOrigin: 0 = missing, 1 = , 2 = , 3 = 
-#   8.  AgeFill:      Float
-#   9.  AgeIsNull:    0 | 1
-#   10. FamilySize:   Int (= SibSp + Parch)
-#   11. Age*Class:    Float (= AgeFill * Pclass)
+# TEST DATA
+test_df = pd.read_csv('test.csv', header=0)        # Load the test file into a dataframe
 
-### Test Data
-test_df = pd.read_csv('data/test.csv', header=0)
-
-# Map gender to 0 (female) and 1 (male)
+# I need to do the same with the test data now, so that the columns are the same as the training data
+# I need to convert all strings to integer classifiers:
+# female = 0, Male = 1
 test_df['Gender'] = test_df['Sex'].map( {'female': 0, 'male': 1} ).astype(int)
 
-# Map point of embarkation to 0, 1, 2
-test_df['PortOfOrigin'] = test_df['Embarked'].map( {None: 0, 'S': 1, 'C': 2, 'Q': 3} ).astype(int)
+# Embarked from 'C', 'Q', 'S'
+# All missing Embarked -> just make them embark from most common place
+if len(test_df.Embarked[ test_df.Embarked.isnull() ]) > 0:
+    test_df.Embarked[ test_df.Embarked.isnull() ] = test_df.Embarked.dropna().mode().values
+# Again convert all Embarked strings to int
+test_df.Embarked = test_df.Embarked.map( lambda x: Ports_dict[x]).astype(int)
 
-# Make a copy of the Age column
-test_df['AgeFill'] = test_df['Age']
-# Calculate median per-class ages.
-median_ages = np.zeros((2,3))
-for i in range(0,2):
-    for j in range(0,3):
-        median_ages[i,j] = test_df[(test_df['Gender'] == i) &
-                (test_df['Pclass'] == j+1)]['Age'].dropna().median()
-# Plug in median gender-class ages for null entries
-for i in range(0,2):
-    for j in range(0,3):
-        test_df.loc[ (test_df.Age.isnull()) & (test_df.Gender == i) &(test_df.Pclass == j+1),
-                'AgeFill'] = median_ages[i,j]
-# A column of 0s and 1s indicating which records had missing Age values.
-test_df['AgeIsNull'] = pd.isnull(test_df.Age).astype(int)
 
-test_df['FamilySize'] = test_df['SibSp'] + test_df['Parch']
-test_df['Age*Class'] = test_df.AgeFill * test_df.Pclass
+# All the ages with no data -> make the median of all Ages
+median_age = test_df['Age'].dropna().median()
+if len(test_df.Age[ test_df.Age.isnull() ]) > 0:
+    test_df.loc[ (test_df.Age.isnull()), 'Age'] = median_age
 
 # All the missing Fares -> assume median of their respective class
 if len(test_df.Fare[ test_df.Fare.isnull() ]) > 0:
     median_fare = np.zeros(3)
-    for f in range(0,3):
+    for f in range(0,3):                                              # loop 0 to 2
         median_fare[f] = test_df[ test_df.Pclass == f+1 ]['Fare'].dropna().median()
-    for f in range(0,3):
+    for f in range(0,3):                                              # loop 0 to 2
         test_df.loc[ (test_df.Fare.isnull()) & (test_df.Pclass == f+1 ), 'Fare'] = median_fare[f]
 
 # Collect the test data's PassengerIds before dropping it
 ids = test_df['PassengerId'].values
+# Remove the Name column, Cabin, Ticket, and Sex (since I copied and filled it to Gender)
+test_df = test_df.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId'], axis=1) 
 
-# Drop unused columns and rows with missing values
-test_df = test_df.drop(['PassengerId', 'Name', 'Age', 'Sex', 'Ticket', 'Cabin', 'Embarked'], axis=1)
-test_df = test_df.dropna()
 
+# The data is now ready to go. So lets fit to the train, then predict to the test!
+# Convert back to a numpy array
+train_data = train_df.values
 test_data = test_df.values
 
-# We have 11 features as follows:
-#   0.  Survived:     0 =no, 1 = yes
-#   1.  Pclass:       1 = 1st, 2 = 2nd, 3 = 3rd
-#   2.  SibSp:        Int
-#   3.  Parch:        Int
-#   4.  Fare:         Float
-#   5.  Gender:       0 = female, 1 = male
-#   6.  PortOfOrigin: 0 = missing, 1 = , 2 = , 3 = 
-#   7.  AgeFill:      Float
-#   8.  AgeIsNull:    0 | 1
-#   9.  FamilySize:   Int (= SibSp + Parch)
-#   10. Age*Class:    Float (= AgeFill * Pclass)
 
-### Run The Model
 print 'Training...'
 forest = RandomForestClassifier(n_estimators=100)
-# Second arg = "the answer", first arg = the training data
-forest = forest.fit( training_data[0::,1::], training_data[0::,0] )
+forest = forest.fit( train_data[0::,1::], train_data[0::,0] )
 
 print 'Predicting...'
 output = forest.predict(test_data).astype(int)
 
-predictions_file = open("results/myfirstforest.csv", "wb")
+
+predictions_file = open("myfirstforest.csv", "wb")
 open_file_object = csv.writer(predictions_file)
 open_file_object.writerow(["PassengerId","Survived"])
 open_file_object.writerows(zip(ids, output))

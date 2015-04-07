@@ -93,7 +93,12 @@ number_of_classes = len(np.unique(data[0::, 2]))
 # Initialize our n-dimensional survival table with zeros.
 survival_table = np.zeros([2, number_of_classes, number_of_price_brackets, number_of_family_size_brackets], float)
 
-# Populate the survival table with the data from the training set.
+# Populate the survival table with the data from the training set. Replace this
+# visually / mentally difficult multi-dimensional table with a Hadley style
+# clean data table. Each dimension is a column.
+
+# Gender : PClass : Fare Bracket : Family Size Bracket : Survived?
+
 for i in range(0, 2):
     for j in xrange(number_of_classes):
         for k in xrange(number_of_price_brackets):
